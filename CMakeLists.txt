@@ -1,0 +1,39 @@
+cmake_minimum_required(VERSION 3.15.7)
+project(whiskey C)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+if (NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE "Debug")
+endif() # CMAKE_BUILD_TYPE
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+	set(WHISKEY_IS_TOP_LVL ON)
+else()
+	set(WHISKEY_IS_TOP_LVL OFF)
+endif() # WHISKEY_IS_TOP_LVL
+
+if (WHISKEY_IS_TOP_LVL)
+	set(WHIS_DEFAULT_LIB_TYPE "EXEC")
+else()
+	set(WHIS_DEFAULT_LIB_TYPE "ARCH")
+
+set(WHIS_LIB_TYPE "${WHIS_DEFAULT_LIB_TYPE}" CACHE STRING "Library type.")
+
+if (WHIS_LIB_TYPE STREQUAL "STATIC")
+	add_library(${PROJECT_NAME} STATIC)
+	target_compile_definitions(${PROJECT_NAME} WHIS_LIB_STATIC)
+elseif (WHIS_LIB_TYPE STREQUAL "EXEC")
+	add_executable(${PROJECT_NAME})
+	add_compile_definitions(${PROJECT_NAME} WHIS_LIB_EXEC)
+else ()
+	add_library(${PROJECT_NAME} SHARED)
+	add_compile_definitions(${PROJECT_NAME} WHIS_LIB_SHARED)
+endif() # WHIS_LIB_TYPE
+
+if (WHIS_INCLUDE_TESTS)
+
+endif() # WHIS_INCLUDE_TESTS
