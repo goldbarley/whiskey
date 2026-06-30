@@ -1,15 +1,17 @@
 #include "whis/attr.h"
+#include "whis/event.h"
 #include "whis/math.h"
+#include "whx/util.h"
 #include "whx/winbuf.h"
 #include "whx/window.h"
+
+#include <xcb/xcb.h>
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <xcb/xcb.h>
 
 struct whx_window
 {
@@ -32,6 +34,8 @@ static struct whx_winbuf
 	.freemask = UINT64_MAX
 };
 
+static struct whx_window *windump = NULL;
+
 WHIS_EXPORT
 whx_window *whx_get_freeaddr(void)
 {
@@ -40,7 +44,7 @@ whx_window *whx_get_freeaddr(void)
 
 	uint8_t fi = WHIS_CTZ64(Whx_Winbuf.freemask);
 	WHIS_CLR_BIT64(Whx_Winbuf.freemask, fi);
-	Whx_Winbuf.usedmask = Whx_Winbuf.freemask;
+	Whx_Winbuf.usedmask = ~Whx_Winbuf.freemask;
 
 	return &Whx_Winbuf.winbuf[fi];
 }
@@ -60,7 +64,7 @@ void whx_remove_window(whx_window *win)
 		/* whx_destroy_window(win); */
 		WHIS_SET_BIT64(Whx_Winbuf.freemask, wi);
 		memset(win, 0, sizeof(struct whx_window));
-		Whx_Winbuf.usedmask = Whx_Winbuf.freemask;
+		Whx_Winbuf.usedmask = ~Whx_Winbuf.freemask;
 	}
 }
 
@@ -68,6 +72,10 @@ WHIS_EXPORT
 whx_window *whx_create_window(const uint32_t width, const uint32_t height,
 			      const char *title)
 {
+	register xcb_connection_t *cnn = xcb_connect(NULL, NULL);
+	if (xcb_connection_has_error(cnn))
+		return NULL;
+
 	register struct whx_window *win = whx_get_freeaddr();
 	if (!win)
 		return NULL;
@@ -75,9 +83,7 @@ whx_window *whx_create_window(const uint32_t width, const uint32_t height,
 	win->width = width;
 	win->height = height;
 
-	register xcb_connection_t *cnn = win->conn;
-	if (xcb_connection_has_error(cnn))
-		return NULL;
+	win->conn = cnn;
 
 	const xcb_setup_t *setup = xcb_get_setup(cnn);
 	xcb_screen_iterator_t scriter = xcb_setup_roots_iterator(setup);
@@ -120,22 +126,58 @@ whx_window *whx_create_window(const uint32_t width, const uint32_t height,
 }
 
 WHIS_EXPORT
-void whx_poll_for_event(whx_window *win)
+void whx_poll_for_event(whx_window *win, wh_evt_callback callback,
+			void *userdata)
 {
 	if (!win)
 		return;
 
 	register xcb_generic_event_t *evt;
 	register xcb_connection_t *cnn = win->conn;
+	register uint32_t rt = 0;
+
 	while ((evt = xcb_poll_for_event(cnn)))
 	{
-		switch(evt->response_type & ~0x80)
+		rt = evt->response_type & ~(0x80);
+		switch(rt)
 		{
-			case XCB_BUTTON_PRESS:
+			case XCB_KEY_PRESS:
+			case XCB_KEY_RELEASE:
 			{
+				xcb_key_press_event_t *kpevt =
+					(xcb_key_press_event_t *)(evt);
 
+				struct wh_event whevt = {0};
+				whevt.type = (rt == XCB_KEY_PRESS) ?
+					WHIS_EVENT_KEY_PRESS :
+					WHIS_EVENT_KEY_RELEASE;
+
+				whevt.key.id = whx_cvt_keycode(kpevt->detail);
+
+				if (whevt.key.id)
+					callback(&whevt, userdata);
+
+				break;
 			}
+			default:
+				break;
 		}
+		free(evt);
+	}
+}
+
+WHIS_EXPORT
+void whx_pollevents(wh_evt_callback callback, void *userdata)
+{
+	uint8_t i = 0;
+	uint64_t umask = Whx_Winbuf.usedmask;
+
+	while(umask)
+	{
+		i = WHIS_CTZ64(umask);
+		windump = &Whx_Winbuf.winbuf[i];
+		whx_poll_for_event(windump, callback, userdata);
+		WHIS_CLR_BIT64(umask, i);
 	}
 }
 
@@ -144,6 +186,8 @@ void whx_destroy_window(whx_window *win)
 {
 	if (!win)
 		return;
+
+	uint8_t i = 0;
 
 	xcb_destroy_window(win->conn, win->handle);
 	xcb_disconnect(win->conn);

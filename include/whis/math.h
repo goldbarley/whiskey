@@ -5,9 +5,6 @@
 
 #include <stdint.h>
 
-#undef __GNUC__
-#undef __clang__
-
 #if defined(__GNUC__) || defined(__clang__)
 #define WHIS_CTZ(n) __builtin_ctz(n)
 #define WHIS_CTZ64(n) __builtin_ctzll(n)
