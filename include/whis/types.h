@@ -1,5 +1,5 @@
-#ifndef WHIS_TYPES_H
-#define WHIS_TYPES_H
+#ifndef WHIS_TYPES_H_
+#define WHIS_TYPES_H_ 1
 
 typedef enum wh_fnresult
 {
@@ -8,4 +8,4 @@ typedef enum wh_fnresult
 	WHIS_INVARG
 } wh_fnresult;
 
-#endif /* WHIS_TYPES_H */
+#endif /* WHIS_TYPES_H_ */

@@ -1,5 +1,5 @@
 #ifndef WHIS_X11_WINDOW_H
-#define WHIS_X11_WINDOW_H
+#define WHIS_X11_WINDOW_H_ 1
 
 #include "types.h"
 #include "whis/attr.h"
@@ -33,4 +33,4 @@ bool whx_window_in_focus(whx_window *window);
 WHIS_EXPORT
 bool whx_ptr_in_window(whx_window *window);
 
-#endif /* WHIS_X11_WINDOW_H */
+#endif /* WHIS_X11_WINDOW_H_ */

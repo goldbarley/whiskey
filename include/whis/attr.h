@@ -1,5 +1,5 @@
-#ifndef WHIS_ATTR_H
-#define WHIS_ATTR_H
+#ifndef WHIS_ATTR_H_
+#define WHIS_ATTR_H_ 1
 
 #if defined(_MSC_VER)
 #ifdef WHIS_LIB_STATIC
@@ -19,4 +19,4 @@
 #define WHIS_INLINE static inline __attribute__((__always_inline__))
 #endif /* Compilers */
 
-#endif /* WHIS_ATTR_H */
+#endif /* WHIS_ATTR_H_ */

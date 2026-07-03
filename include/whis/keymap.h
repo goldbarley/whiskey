@@ -1,5 +1,5 @@
-#ifndef WHIS_KEYMAP_H
-#define WHIS_KEYMAP_H
+#ifndef WHIS_KEYMAP_H_
+#define WHIS_KEYMAP_H_ 1
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -252,4 +252,4 @@ typedef uint16_t wh_btncode;
 #define WHIS_KEY_NUM(keycode) \
 	((keycode) >= WHIS_KEY_1 && (keycode) <= WHIS_KEY_0 || (keycode) >= WHIS_KEY_PAD_1 && (keycode) <= WHIS_KEY_PAD_0)
 
-#endif /* WHIS_KEYMAP_H */
+#endif /* WHIS_KEYMAP_H_ */

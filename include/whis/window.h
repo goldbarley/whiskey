@@ -1,5 +1,5 @@
-#ifndef WHIS_WINDOW_H
-#define WHIS_WINDOW_H
+#ifndef WHIS_WINDOW_H_
+#define WHIS_WINDOW_H_ 1
 
 #include "attr.h"
 
@@ -36,4 +36,4 @@ void wh_poll_for_event(wh_window *win, wh_evt_callback callback,
 WHIS_EXPORT
 void wh_pollevents(wh_evt_callback callback, void *userdata);
 
-#endif /* WHIS_WINDOW_H */
+#endif /* WHIS_WINDOW_H_ */

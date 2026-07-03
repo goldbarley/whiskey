@@ -1,5 +1,5 @@
-#ifndef WHIS_EVENT_H
-#define WHIS_EVENT_H
+#ifndef WHIS_EVENT_H_
+#define WHIS_EVENT_H_ 1
 
 #include "keymap.h"
 
@@ -48,4 +48,4 @@ struct wh_event
 
 typedef int(*wh_evt_callback)(struct wh_event *, void *userdata);
 
-#endif /* WHIS_EVENT_H */
+#endif /* WHIS_EVENT_H_ */

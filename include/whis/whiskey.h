@@ -1,5 +1,5 @@
-#ifndef WHISKEY_H
-#define WHISKEY_H
+#ifndef WHISKEY_H_
+#define WHISKEY_H_ 1
 
 #include "attr.h"
 #include "event.h"
@@ -12,4 +12,4 @@
 #include "linux.h"
 #endif /* __linux__ */
 
-#endif /* WHISKEY_H */
+#endif /* WHISKEY_H_ */

@@ -47,6 +47,10 @@ int main(void)
 	if (!window1)
 		return -1;
 
+	wh_window *window2 = wh_create_window(800, 600, "Second window");
+	if (!window2)
+		return -1;
+
 	struct wh_event evt = {0};
 
 	while(true)
@@ -55,6 +59,7 @@ int main(void)
 	}
 
 	wh_destroy_window(window1);
+	wh_destroy_window(window2);
 
 	return 0;
 }

@@ -1,5 +1,5 @@
-#ifndef WHIS_MATH_H
-#define WHIS_MATH_H
+#ifndef WHIS_MATH_H_
+#define WHIS_MATH_H_ 1
 
 #include "attr.h"
 
@@ -47,4 +47,4 @@ uint8_t wh_ctz64_fallback(uint64_t n)
 #define WHIS_CLR_BIT64(m, i) \
 	((m) &= ~(UINT64_C(1) << (i)))
 
-#endif /* WHIS_MATH_H */
+#endif /* WHIS_MATH_H_ */

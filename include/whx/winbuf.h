@@ -1,5 +1,5 @@
 #ifndef WHIS_X11_WINBUF_H
-#define WHIS_X11_WINBUF_H
+#define WHIS_X11_WINBUF_H_ 1
 
 #include "types.h"
 #include "whis/attr.h"
@@ -12,4 +12,4 @@ whx_window *whx_get_freeaddr(void);
 WHIS_EXPORT
 void whx_remove_window(whx_window *win);
 
-#endif /* WHIS_X11_WINBUF_H */
+#endif /* WHIS_X11_WINBUF_H_ */
