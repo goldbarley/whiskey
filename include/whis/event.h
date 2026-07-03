@@ -11,7 +11,13 @@ enum wh_event_type
 	WHIS_EVENT_KEY_RELEASE,
 	WHIS_EVENT_BTN_PRESS,
 	WHIS_EVENT_BTN_RELEASE,
-	WH_EVENT_PTR_MOVE
+	WHIS_EVENT_PTR_MOVE,
+	WHIS_EVENT_SCROLL,
+	WHIS_EVENT_FOCUS_IN,
+	WHIS_EVENT_FOCUS_OUT,
+	WHIS_EVENT_PTR_IN,
+	WHIS_EVENT_PTR_OUT,
+	WHIS_EVENT_WINDOW_CONFIGURE,
 };
 
 struct wh_event
@@ -28,12 +34,18 @@ struct wh_event
 		struct
 		{
 			wh_btncode id;
-			int32_t x;
-			int32_t y;
+			float x;
+			float y;
 		} ptr;
+
+		struct
+		{
+			float dx;
+			float dy;
+		} scroll;
 	};
 };
 
-typedef void(*wh_evt_callback)(struct wh_event *, void *userdata);
+typedef int(*wh_evt_callback)(struct wh_event *, void *userdata);
 
 #endif /* WHIS_EVENT_H */

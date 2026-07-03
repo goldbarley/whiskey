@@ -3,8 +3,9 @@
 
 typedef enum wh_fnresult
 {
-	WH_SUCCESS = 0,
-	WH_FAILURE = -10
+	WHIS_SUCCESS = 0,
+	WHIS_FAILURE = -10,
+	WHIS_INVARG
 } wh_fnresult;
 
 #endif /* WHIS_TYPES_H */

@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <xcb/xproto.h>
 
 struct whx_window
 {
@@ -20,6 +21,8 @@ struct whx_window
 	const char *title;
 	uint32_t width;
 	uint32_t height;
+	bool focused;
+	bool ptrin;
 };
 
 #include <stdint.h>
@@ -94,6 +97,8 @@ whx_window *whx_create_window(const uint32_t width, const uint32_t height,
 	static xcb_event_mask_t evtmask =
 		XCB_EVENT_MASK_BUTTON_PRESS |
 		XCB_EVENT_MASK_BUTTON_RELEASE |
+		XCB_EVENT_MASK_ENTER_WINDOW |
+		XCB_EVENT_MASK_LEAVE_WINDOW |
 		XCB_EVENT_MASK_EXPOSURE |
 		XCB_EVENT_MASK_FOCUS_CHANGE |
 		XCB_EVENT_MASK_KEY_PRESS |
@@ -126,14 +131,14 @@ whx_window *whx_create_window(const uint32_t width, const uint32_t height,
 }
 
 WHIS_EXPORT
-void whx_poll_for_event(whx_window *win, wh_evt_callback callback,
+void whx_poll_for_event(whx_window *window, wh_evt_callback callback,
 			void *userdata)
 {
-	if (!win)
+	if (!window)
 		return;
 
 	register xcb_generic_event_t *evt;
-	register xcb_connection_t *cnn = win->conn;
+	register xcb_connection_t *cnn = window->conn;
 	register uint32_t rt = 0;
 
 	while ((evt = xcb_poll_for_event(cnn)))
@@ -147,20 +152,124 @@ void whx_poll_for_event(whx_window *win, wh_evt_callback callback,
 				xcb_key_press_event_t *kpevt =
 					(xcb_key_press_event_t *)(evt);
 
-				struct wh_event whevt = {0};
-				whevt.type = (rt == XCB_KEY_PRESS) ?
-					WHIS_EVENT_KEY_PRESS :
-					WHIS_EVENT_KEY_RELEASE;
-
-				whevt.key.id = whx_cvt_keycode(kpevt->detail);
+				struct wh_event whevt = {
+					.type = (rt == XCB_KEY_PRESS) ?
+						WHIS_EVENT_KEY_PRESS :
+						WHIS_EVENT_KEY_RELEASE,
+					.key.id = whx_cvt_keycode(kpevt->detail)
+				};
 
 				if (whevt.key.id)
 					callback(&whevt, userdata);
 
 				break;
 			}
+
+			case XCB_BUTTON_PRESS:
+			case XCB_BUTTON_RELEASE:
+			{
+				xcb_button_press_event_t *bpevt =
+					(xcb_button_press_event_t *)(evt);
+
+				struct wh_event whevt = {
+					.type = (rt == XCB_BUTTON_PRESS) ?
+						WHIS_EVENT_BTN_PRESS :
+						WHIS_EVENT_BTN_RELEASE,
+					.ptr.id = whx_cvt_btncode(bpevt->detail)
+				};
+
+				if (whevt.ptr.id)
+					callback(&whevt, userdata);
+
+				break;
+			}
+
+			case XCB_MOTION_NOTIFY:
+			{
+				xcb_motion_notify_event_t *mevt =
+					(xcb_motion_notify_event_t *)(evt);
+
+				struct wh_event whevt = {
+					.type = WHIS_EVENT_PTR_MOVE,
+					.ptr.x = mevt->event_x,
+					.ptr.y = mevt->event_y
+				};
+
+				callback(&whevt, userdata);
+
+				break;
+			}
+
+			case XCB_FOCUS_IN:
+			{
+				window->focused = true;
+
+				struct wh_event whevt = {
+					.type = WHIS_EVENT_FOCUS_IN
+				};
+
+				callback(&whevt, userdata);
+
+				break;
+			}
+			case XCB_FOCUS_OUT:
+			{
+				window->focused = false;
+
+				struct wh_event whevt = {
+					.type = WHIS_EVENT_FOCUS_OUT
+				};
+
+				callback(&whevt, userdata);
+
+				break;
+			}
+
+			case XCB_ENTER_NOTIFY:
+			{
+				window->ptrin = true;
+
+				struct wh_event whevt = {
+					.type = WHIS_EVENT_PTR_IN
+				};
+
+				callback(&whevt, userdata);
+
+				break;
+			}
+			case XCB_LEAVE_NOTIFY:
+			{
+				window->ptrin = false;
+
+				struct wh_event whevt = {
+					.type = WHIS_EVENT_PTR_OUT
+				};
+
+				callback(&whevt, userdata);
+
+				break;
+			}
+
+			case XCB_CONFIGURE_NOTIFY:
+			{
+				xcb_configure_notify_event_t *cevt =
+					(xcb_configure_notify_event_t *)(evt);
+
+				window->height = cevt->width;
+				window->height = cevt->height;
+
+				struct wh_event whevt = {
+					.type = WHIS_EVENT_WINDOW_CONFIGURE
+				};
+
+				callback(&whevt, userdata);
+
+				break;
+			}
+
 			default:
 				break;
+
 		}
 		free(evt);
 	}
@@ -179,6 +288,43 @@ void whx_pollevents(wh_evt_callback callback, void *userdata)
 		whx_poll_for_event(windump, callback, userdata);
 		WHIS_CLR_BIT64(umask, i);
 	}
+}
+
+WHIS_EXPORT
+wh_fnresult whx_get_framebuffer_size(whx_window *win, uint32_t *width,
+			      uint32_t *height)
+{
+	if (!win || !width || !height)
+		return WHIS_INVARG;
+
+
+
+	xcb_get_geometry_cookie_t cookie = xcb_get_geometry(win->conn,
+							     win->handle);
+	xcb_get_geometry_reply_t *reply = xcb_get_geometry_reply(win->conn,
+								 cookie, NULL);
+
+	if (!reply)
+		return WHIS_FAILURE;
+
+	*width = reply->width;
+	*height = reply ->height;
+
+	free(reply);
+
+	return WHIS_SUCCESS;
+}
+
+WHIS_EXPORT
+bool whx_window_in_focus(whx_window *window)
+{
+	return window->focused;
+}
+
+WHIS_EXPORT
+bool whx_ptr_in_window(whx_window *window)
+{
+	return window->ptrin;
 }
 
 WHIS_EXPORT
