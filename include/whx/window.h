@@ -6,6 +6,8 @@
 #include "whis/event.h"
 #include "whis/types.h"
 
+#include <xcb/xcb.h>
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -32,5 +34,11 @@ bool whx_window_in_focus(whx_window *window);
 
 WHIS_EXPORT
 bool whx_ptr_in_window(whx_window *window);
+
+WHIS_EXPORT
+xcb_connection_t *whx_get_connection(void);
+
+WHIS_EXPORT
+xcb_window_t whx_get_window(whx_window *window);
 
 #endif /* WHIS_X11_WINDOW_H_ */

@@ -15,7 +15,6 @@ if (NOT CMAKE_BUILD_TYPE)
 endif() # CMAKE_BUILD_TYPE
 
 if (WIN32)
-	set(WHIS_PLATFORM "WIN32" CACHE STRING "Platform.")
 	add_compile_definitions(WHIS_PLATFORM_WIN32)
 endif() # WIN32
 

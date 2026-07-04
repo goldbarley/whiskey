@@ -30,8 +30,10 @@ struct whx_window
 static struct whx_winbuf
 {
 	struct whx_window winbuf[WHIS_MAX_X11_WINDOW_COUNT];
+	xcb_connection_t *conn;
 	uint64_t freemask;
 	uint64_t usedmask;
+	bool connected;
 } Whx_Winbuf = {
 	.winbuf = {0},
 	.freemask = UINT64_MAX
@@ -75,9 +77,17 @@ WHIS_EXPORT
 whx_window *whx_create_window(const uint32_t width, const uint32_t height,
 			      const char *title)
 {
-	register xcb_connection_t *cnn = xcb_connect(NULL, NULL);
-	if (xcb_connection_has_error(cnn))
-		return NULL;
+	static xcb_connection_t *cnn;
+
+	if (!Whx_Winbuf.connected)
+	{
+		cnn = xcb_connect(NULL, NULL);
+		if (xcb_connection_has_error(cnn))
+			return NULL;
+		Whx_Winbuf.connected = true;
+
+		Whx_Winbuf.conn = cnn;
+	}
 
 	register struct whx_window *win = whx_get_freeaddr();
 	if (!win)
@@ -325,6 +335,18 @@ WHIS_EXPORT
 bool whx_ptr_in_window(whx_window *window)
 {
 	return window->ptrin;
+}
+
+WHIS_EXPORT
+xcb_connection_t *whx_get_connection(void)
+{
+	return Whx_Winbuf.conn;
+}
+
+WHIS_EXPORT
+xcb_window_t whx_get_window(whx_window *window)
+{
+	return window->handle;
 }
 
 WHIS_EXPORT
