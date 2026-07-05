@@ -350,6 +350,7 @@ void wh_destroy_window(wh_window *win)
 WHIS_EXPORT
 wh_fnresult wh_create_vulkan_surface(VkSurfaceKHR *surface, wh_window *window,
 				     VkInstance instance,
+				     PFN_vkCreateXcbSurfaceKHR fp,
 				     VkAllocationCallbacks *allocator)
 {
 	if (!surface || !window)
@@ -364,8 +365,7 @@ wh_fnresult wh_create_vulkan_surface(VkSurfaceKHR *surface, wh_window *window,
 		.window = window->window
 	};
 
-	vkres = vkCreateXcbSurfaceKHR(instance, &createinfo, allocator,
-				      surface);
+	vkres = fp(instance, &createinfo, allocator, surface);
 	if (vkres != VK_SUCCESS)
 		return WHIS_FAILURE;
 

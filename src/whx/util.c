@@ -4,12 +4,12 @@
 #ifdef __linux__
 #include "whis/linux.h"
 
-wh_keycode whx_cvt_keycode(xcb_keycode_t keycode)
+wh_keycode whx_cvt_keycode(uint8_t keycode)
 {
 	return keycode < 8 ? 0 : Wh_Evdev2Whis_Keymap[keycode - 8];
 }
 
-wh_btncode whx_cvt_btncode(xcb_button_t btncode)
+wh_btncode whx_cvt_btncode(uint8_t btncode)
 {
 	switch (btncode)
 	{
