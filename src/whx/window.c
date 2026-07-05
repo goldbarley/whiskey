@@ -1,9 +1,11 @@
+#define VK_USE_PLATFORM_XCB_KHR
+
 #include "whis/attr.h"
 #include "whis/event.h"
 #include "whis/math.h"
 #include "whx/util.h"
-#include "whx/winbuf.h"
-#include "whx/window.h"
+#include "whis/vulkan.h"
+#include "whis/window.h"
 
 #include <xcb/xcb.h>
 
@@ -14,10 +16,10 @@
 #include <string.h>
 #include <xcb/xproto.h>
 
-struct whx_window
+struct wh_window
 {
-	xcb_connection_t *conn;
-	xcb_window_t handle;
+	xcb_connection_t *connection;
+	xcb_window_t window;
 	const char *title;
 	uint32_t width;
 	uint32_t height;
@@ -27,22 +29,21 @@ struct whx_window
 
 #include <stdint.h>
 
-static struct whx_winbuf
+static struct wh_winbuf
 {
-	struct whx_window winbuf[WHIS_MAX_X11_WINDOW_COUNT];
-	xcb_connection_t *conn;
+	struct wh_window winbuf[WHIS_MAX_WINDOW_COUNT];
+	xcb_connection_t *connection;
 	uint64_t freemask;
 	uint64_t usedmask;
-	bool connected;
+	wh_bool connected;
 } Whx_Winbuf = {
 	.winbuf = {0},
 	.freemask = UINT64_MAX
 };
 
-static struct whx_window *windump = NULL;
+static struct wh_window *windump = NULL;
 
-WHIS_EXPORT
-whx_window *whx_get_freeaddr(void)
+wh_window *whx_get_freeaddr(void)
 {
 	if (!Whx_Winbuf.freemask)
 		return NULL;
@@ -54,27 +55,26 @@ whx_window *whx_get_freeaddr(void)
 	return &Whx_Winbuf.winbuf[fi];
 }
 
-WHIS_EXPORT
-void whx_remove_window(whx_window *win)
+void whx_remove_window(struct wh_window *window)
 {
-	if (Whx_Winbuf.freemask == UINT64_MAX || !win)
+	if (Whx_Winbuf.freemask == UINT64_MAX || !window)
 		return;
 
-	uint8_t wi = win - Whx_Winbuf.winbuf;
-	if (wi >= WHIS_MAX_X11_WINDOW_COUNT)
+	uint8_t wi = (uint8_t)(window - Whx_Winbuf.winbuf);
+	if (wi >= WHIS_MAX_WINDOW_COUNT)
 		return;
 
 	if (!(Whx_Winbuf.freemask & (UINT64_C(1) << wi)))
 	{
 		/* whx_destroy_window(win); */
 		WHIS_SET_BIT64(Whx_Winbuf.freemask, wi);
-		memset(win, 0, sizeof(struct whx_window));
+		memset(window, 0, sizeof(struct wh_window));
 		Whx_Winbuf.usedmask = ~Whx_Winbuf.freemask;
 	}
 }
 
 WHIS_EXPORT
-whx_window *whx_create_window(const uint32_t width, const uint32_t height,
+wh_window *wh_create_window(const uint32_t width, const uint32_t height,
 			      const char *title)
 {
 	static xcb_connection_t *cnn;
@@ -84,19 +84,19 @@ whx_window *whx_create_window(const uint32_t width, const uint32_t height,
 		cnn = xcb_connect(NULL, NULL);
 		if (xcb_connection_has_error(cnn))
 			return NULL;
-		Whx_Winbuf.connected = true;
+		Whx_Winbuf.connected = WHIS_TRUE;
 
-		Whx_Winbuf.conn = cnn;
+		Whx_Winbuf.connection = cnn;
 	}
 
-	register struct whx_window *win = whx_get_freeaddr();
+	register struct wh_window *win = whx_get_freeaddr();
 	if (!win)
 		return NULL;
 
 	win->width = width;
 	win->height = height;
 
-	win->conn = cnn;
+	win->connection = cnn;
 
 	const xcb_setup_t *setup = xcb_get_setup(cnn);
 	xcb_screen_iterator_t scriter = xcb_setup_roots_iterator(setup);
@@ -117,7 +117,7 @@ whx_window *whx_create_window(const uint32_t width, const uint32_t height,
 		XCB_EVENT_MASK_STRUCTURE_NOTIFY;
 
 	xcb_window_t xwin = xcb_generate_id(cnn);
-	win->handle = xwin;
+	win->window = xwin;
 
 	xcb_void_cookie_t cookie = xcb_create_window_checked(
 		cnn, XCB_COPY_FROM_PARENT, xwin, scr->root, 0, 0,
@@ -141,14 +141,14 @@ whx_window *whx_create_window(const uint32_t width, const uint32_t height,
 }
 
 WHIS_EXPORT
-void whx_poll_for_event(whx_window *window, wh_evt_callback callback,
+void wh_poll_for_event(wh_window *window, wh_evt_callback callback,
 			void *userdata)
 {
 	if (!window)
 		return;
 
 	register xcb_generic_event_t *evt;
-	register xcb_connection_t *cnn = window->conn;
+	register xcb_connection_t *cnn = window->connection;
 	register uint32_t rt = 0;
 
 	while ((evt = xcb_poll_for_event(cnn)))
@@ -212,7 +212,7 @@ void whx_poll_for_event(whx_window *window, wh_evt_callback callback,
 
 			case XCB_FOCUS_IN:
 			{
-				window->focused = true;
+				window->focused = WHIS_TRUE;
 
 				struct wh_event whevt = {
 					.type = WHIS_EVENT_FOCUS_IN
@@ -224,7 +224,7 @@ void whx_poll_for_event(whx_window *window, wh_evt_callback callback,
 			}
 			case XCB_FOCUS_OUT:
 			{
-				window->focused = false;
+				window->focused = WHIS_FALSE;
 
 				struct wh_event whevt = {
 					.type = WHIS_EVENT_FOCUS_OUT
@@ -237,7 +237,7 @@ void whx_poll_for_event(whx_window *window, wh_evt_callback callback,
 
 			case XCB_ENTER_NOTIFY:
 			{
-				window->ptrin = true;
+				window->ptrin = WHIS_TRUE;
 
 				struct wh_event whevt = {
 					.type = WHIS_EVENT_PTR_IN
@@ -249,7 +249,7 @@ void whx_poll_for_event(whx_window *window, wh_evt_callback callback,
 			}
 			case XCB_LEAVE_NOTIFY:
 			{
-				window->ptrin = false;
+				window->ptrin = WHIS_FALSE;
 
 				struct wh_event whevt = {
 					.type = WHIS_EVENT_PTR_OUT
@@ -265,7 +265,7 @@ void whx_poll_for_event(whx_window *window, wh_evt_callback callback,
 				xcb_configure_notify_event_t *cevt =
 					(xcb_configure_notify_event_t *)(evt);
 
-				window->height = cevt->width;
+				window->width = cevt->width;
 				window->height = cevt->height;
 
 				struct wh_event whevt = {
@@ -286,7 +286,7 @@ void whx_poll_for_event(whx_window *window, wh_evt_callback callback,
 }
 
 WHIS_EXPORT
-void whx_pollevents(wh_evt_callback callback, void *userdata)
+void wh_pollevents(wh_evt_callback callback, void *userdata)
 {
 	uint8_t i = 0;
 	uint64_t umask = Whx_Winbuf.usedmask;
@@ -295,13 +295,13 @@ void whx_pollevents(wh_evt_callback callback, void *userdata)
 	{
 		i = WHIS_CTZ64(umask);
 		windump = &Whx_Winbuf.winbuf[i];
-		whx_poll_for_event(windump, callback, userdata);
+		wh_poll_for_event(windump, callback, userdata);
 		WHIS_CLR_BIT64(umask, i);
 	}
 }
 
 WHIS_EXPORT
-wh_fnresult whx_get_framebuffer_size(whx_window *win, uint32_t *width,
+wh_fnresult whx_get_framebuffer_size(wh_window *win, uint32_t *width,
 			      uint32_t *height)
 {
 	if (!win || !width || !height)
@@ -309,9 +309,9 @@ wh_fnresult whx_get_framebuffer_size(whx_window *win, uint32_t *width,
 
 
 
-	xcb_get_geometry_cookie_t cookie = xcb_get_geometry(win->conn,
-							     win->handle);
-	xcb_get_geometry_reply_t *reply = xcb_get_geometry_reply(win->conn,
+	xcb_get_geometry_cookie_t cookie = xcb_get_geometry(win->connection,
+							     win->window);
+	xcb_get_geometry_reply_t *reply = xcb_get_geometry_reply(win->connection,
 								 cookie, NULL);
 
 	if (!reply)
@@ -326,38 +326,65 @@ wh_fnresult whx_get_framebuffer_size(whx_window *win, uint32_t *width,
 }
 
 WHIS_EXPORT
-bool whx_window_in_focus(whx_window *window)
+wh_bool wh_window_in_focus(wh_window *window)
 {
 	return window->focused;
 }
 
 WHIS_EXPORT
-bool whx_ptr_in_window(whx_window *window)
+wh_bool wh_ptr_in_window(wh_window *window)
 {
 	return window->ptrin;
 }
 
 WHIS_EXPORT
-xcb_connection_t *whx_get_connection(void)
-{
-	return Whx_Winbuf.conn;
-}
-
-WHIS_EXPORT
-xcb_window_t whx_get_window(whx_window *window)
-{
-	return window->handle;
-}
-
-WHIS_EXPORT
-void whx_destroy_window(whx_window *win)
+void wh_destroy_window(wh_window *win)
 {
 	if (!win)
 		return;
 
-	uint8_t i = 0;
-
-	xcb_destroy_window(win->conn, win->handle);
-	xcb_disconnect(win->conn);
+	xcb_destroy_window(win->connection, win->window);
 	whx_remove_window(win);
+}
+
+WHIS_EXPORT
+wh_fnresult wh_create_vulkan_surface(VkSurfaceKHR *surface, wh_window *window,
+				     VkInstance instance,
+				     VkAllocationCallbacks *allocator)
+{
+	if (!surface || !window)
+		return WHIS_INVARG;
+
+	VkResult vkres = VK_SUCCESS;
+
+	VkXcbSurfaceCreateInfoKHR createinfo = {
+		.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
+		.pNext = NULL,
+		.connection = window->connection,
+		.window = window->window
+	};
+
+	vkres = vkCreateXcbSurfaceKHR(instance, &createinfo, allocator,
+				      surface);
+	if (vkres != VK_SUCCESS)
+		return WHIS_FAILURE;
+
+	return WHIS_SUCCESS;
+}
+
+WHIS_EXPORT
+void wh_shutdown(void)
+{
+	uint8_t i = 0;
+	uint64_t umask = Whx_Winbuf.usedmask;
+
+	while(umask)
+	{
+		i = WHIS_CTZ64(umask);
+		windump = &Whx_Winbuf.winbuf[i];
+		wh_destroy_window(windump);
+		WHIS_CLR_BIT64(umask, i);
+	}
+
+	xcb_disconnect(Whx_Winbuf.connection);
 }

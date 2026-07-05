@@ -11,10 +11,7 @@
 #ifdef __linux__
 #include "linux.h"
 #if defined(WHIS_PLATFORM_X11)
-#include "whx/types.h"
 #include "whx/util.h"
-#include "whx/winbuf.h"
-#include "whx/window.h"
 #elif defined(WHIS_PLATFORM_WAYLAND)
 #endif /* WHIS_PLATFORM_* */
 #endif /* __linux__ */

@@ -8,4 +8,11 @@ typedef enum wh_fnresult
 	WHIS_INVARG
 } wh_fnresult;
 
+typedef struct wh_window wh_window;
+
+#define WHIS_FALSE (0)
+#define WHIS_TRUE (1)
+
+typedef unsigned char wh_bool;
+
 #endif /* WHIS_TYPES_H_ */

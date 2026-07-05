@@ -4,6 +4,8 @@ project(whiskey C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+find_package(Vulkan REQUIRED)
+
 if (NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE "Debug")
 endif() # CMAKE_BUILD_TYPE
@@ -70,9 +72,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 target_sources(${PROJECT_NAME} PUBLIC
-	${CMAKE_CURRENT_SOURCE_DIR}/src/whis/event.c
-	${CMAKE_CURRENT_SOURCE_DIR}/src/whis/linux.c
-	${CMAKE_CURRENT_SOURCE_DIR}/src/whis/window.c)
+	${CMAKE_CURRENT_SOURCE_DIR}/src/whis/linux.c)
 
 if (WHIS_PLATFORM STREQUAL "X11")
 	target_link_libraries(${PROJECT_NAME} PRIVATE ${XCB_LIBRARIES})
@@ -81,5 +81,7 @@ if (WHIS_PLATFORM STREQUAL "X11")
 
 	target_sources(${PROJECT_NAME} PRIVATE
 		${CMAKE_CURRENT_SOURCE_DIR}/src/whx/util.c
-		${CMAKE_CURRENT_SOURCE_DIR}/src/whx/winbuf.c)
+		${CMAKE_CURRENT_SOURCE_DIR}/src/whx/window.c)
 endif () # Platform X11
+
+target_link_libraries(${PROJECT_NAME} PRIVATE vulkan)
