@@ -7,14 +7,10 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 find_package(Vulkan REQUIRED)
 
 if (NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE "Debug")
+	set(CMAKE_BUILD_TYPE "Release")
 endif() # CMAKE_BUILD_TYPE
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-if (NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE "Debug")
-endif() # CMAKE_BUILD_TYPE
 
 if (WIN32)
 	add_compile_definitions(WHIS_PLATFORM_WIN32)
@@ -71,7 +67,7 @@ endif() # WHIS_INCLUDE_TESTS
 target_include_directories(${PROJECT_NAME} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-target_sources(${PROJECT_NAME} PUBLIC
+target_sources(${PROJECT_NAME} PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}/src/whis/linux.c)
 
 if (WHIS_PLATFORM STREQUAL "X11")
@@ -84,4 +80,4 @@ if (WHIS_PLATFORM STREQUAL "X11")
 		${CMAKE_CURRENT_SOURCE_DIR}/src/whx/window.c)
 endif () # Platform X11
 
-target_link_libraries(${PROJECT_NAME} PRIVATE vulkan)
+target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan)
