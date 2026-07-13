@@ -133,40 +133,18 @@ wh_window *wh_create_window(const uint32_t width, const uint32_t height,
 	xcb_window_t xwin = xcb_generate_id(cnn);
 	win->window = xwin;
 
-	xcb_void_cookie_t win_cookie = xcb_create_window_checked(
-		cnn, XCB_COPY_FROM_PARENT, xwin, scr->root, 0, 0,
-		width, height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
-		scr->root_visual, mask, &evtmask);
+	xcb_create_window(cnn, XCB_COPY_FROM_PARENT, xwin, scr->root, 0, 0,
+			  width, height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
+			  scr->root_visual, mask, &evtmask);
 
-	xcb_void_cookie_t prop_cookie =
-	xcb_change_property_checked(cnn, XCB_PROP_MODE_REPLACE, xwin,
+	if (title)
+		xcb_change_property(cnn, XCB_PROP_MODE_REPLACE, xwin,
 				    XCB_ATOM_WM_NAME, XCB_ATOM_STRING,
 				    8, strlen(title), title);
 
 	xcb_change_property(cnn, XCB_PROP_MODE_REPLACE, xwin,
 			    Whx_Winbuf.wm_protocols, XCB_ATOM_ATOM, 32, 1,
 			    &Whx_Winbuf.wm_del_win);
-
-	xcb_generic_error_t *error = xcb_request_check(cnn, win_cookie);
-	if (error)
-	{
-		free(error);
-		whx_remove_window(win);
-
-		return NULL;
-	}
-
-	error = xcb_request_check(cnn, prop_cookie);
-	if (error)
-	{
-		free(error);
-		xcb_destroy_window(cnn, xwin);
-		whx_remove_window(win);
-
-		return NULL;
-	}
-
-
 
 	xcb_map_window(cnn, xwin);
 	xcb_flush(cnn);
@@ -191,17 +169,21 @@ struct wh_window *whx_get_window(xcb_window_t xwin)
 }
 
 WHIS_EXPORT
-void wh_pollevents(wh_evt_callback callback, void *userdata)
+void wh_poll_events(struct wh_event *event)
 {
-	if (!callback || !Whx_Winbuf.connected)
+	if (!event || !Whx_Winbuf.connected)
 		return;
 
-	register xcb_generic_event_t *evt;
-	register xcb_connection_t *cnn = Whx_Winbuf.connection;
-	register uint32_t rt = 0;
-	register struct wh_window *window = NULL;
+	xcb_generic_event_t *evt;
 
-	while ((evt = xcb_poll_for_event(cnn)))
+	struct wh_window *window = NULL;
+	register struct wh_event *revent = event;
+
+	revent->window = NULL;
+	revent->type = WHIS_EVENT_UNKNOWN;
+
+	uint32_t rt = 0;
+	while ((evt = xcb_poll_for_event(Whx_Winbuf.connection)))
 	{
 		rt = evt->response_type & ~(0x80);
 		switch(rt)
@@ -216,16 +198,11 @@ void wh_pollevents(wh_evt_callback callback, void *userdata)
 				if (!window)
 					break;
 
-				struct wh_event whevt = {
-					.window = window,
-					.type = (rt == XCB_KEY_PRESS) ?
-						WHIS_EVENT_KEY_PRESS :
-						WHIS_EVENT_KEY_RELEASE,
-					.key.id = whx_cvt_keycode(kpevt->detail)
-				};
-
-				if (whevt.key.id)
-					callback(&whevt, userdata);
+				revent->window = window;
+				revent->type = (rt == XCB_KEY_PRESS) ?
+					WHIS_EVENT_KEY_PRESS :
+					WHIS_EVENT_KEY_RELEASE;
+				revent->key.id = whx_cvt_keycode(kpevt->detail);
 
 				break;
 			}
@@ -240,16 +217,11 @@ void wh_pollevents(wh_evt_callback callback, void *userdata)
 				if (!window)
 					break;
 
-				struct wh_event whevt = {
-					.window = window,
-					.type = (rt == XCB_BUTTON_PRESS) ?
-						WHIS_EVENT_BTN_PRESS :
-						WHIS_EVENT_BTN_RELEASE,
-					.ptr.id = whx_cvt_btncode(bpevt->detail)
-				};
-
-				if (whevt.ptr.id)
-					callback(&whevt, userdata);
+				revent->window = window;
+				revent->type = (rt == XCB_BUTTON_PRESS) ?
+					WHIS_EVENT_BTN_PRESS :
+					WHIS_EVENT_BTN_RELEASE;
+				revent->ptr.id = whx_cvt_btncode(bpevt->detail);
 
 				break;
 			}
@@ -263,14 +235,10 @@ void wh_pollevents(wh_evt_callback callback, void *userdata)
 				if (!window)
 					break;
 
-				struct wh_event whevt = {
-					.window = window,
-					.type = WHIS_EVENT_PTR_MOVE,
-					.ptr.x = mevt->event_x,
-					.ptr.y = mevt->event_y
-				};
-
-				callback(&whevt, userdata);
+				revent->window = window;
+				revent->type = WHIS_EVENT_PTR_MOVE;
+				revent->ptr.x = mevt->event_x;
+				revent->ptr.y = mevt->event_y;
 
 				break;
 			}
@@ -285,12 +253,8 @@ void wh_pollevents(wh_evt_callback callback, void *userdata)
 					break;
 				window->focused = WHIS_TRUE;
 
-				struct wh_event whevt = {
-					.window = window,
-					.type = WHIS_EVENT_FOCUS_IN
-				};
-
-				callback(&whevt, userdata);
+				revent->window = window;
+				revent->type = WHIS_EVENT_FOCUS_IN;
 
 				break;
 			}
@@ -304,12 +268,8 @@ void wh_pollevents(wh_evt_callback callback, void *userdata)
 					break;
 				window->focused = WHIS_FALSE;
 
-				struct wh_event whevt = {
-					.window = window,
-					.type = WHIS_EVENT_FOCUS_OUT
-				};
-
-				callback(&whevt, userdata);
+				revent->window = window;
+				revent->type = WHIS_EVENT_FOCUS_OUT;
 
 				break;
 			}
@@ -324,12 +284,8 @@ void wh_pollevents(wh_evt_callback callback, void *userdata)
 					break;
 				window->ptrin = WHIS_TRUE;
 
-				struct wh_event whevt = {
-					.window = window,
-					.type = WHIS_EVENT_PTR_IN
-				};
-
-				callback(&whevt, userdata);
+				revent->window = window;
+				revent->type = WHIS_EVENT_PTR_IN;
 
 				break;
 			}
@@ -343,12 +299,8 @@ void wh_pollevents(wh_evt_callback callback, void *userdata)
 					break;
 				window->ptrin = WHIS_FALSE;
 
-				struct wh_event whevt = {
-					.window = window,
-					.type = WHIS_EVENT_PTR_OUT
-				};
-
-				callback(&whevt, userdata);
+				revent->window = window;
+				revent->type = WHIS_EVENT_PTR_OUT;
 
 				break;
 			}
@@ -365,12 +317,8 @@ void wh_pollevents(wh_evt_callback callback, void *userdata)
 				window->width = cevt->width;
 				window->height = cevt->height;
 
-				struct wh_event whevt = {
-					.window = window,
-					.type = WHIS_EVENT_WINDOW_CONFIGURE
-				};
-
-				callback(&whevt, userdata);
+				revent->window = window;
+				revent->type = WHIS_EVENT_WINDOW_CONFIGURE;
 
 				break;
 			}
@@ -384,23 +332,16 @@ void wh_pollevents(wh_evt_callback callback, void *userdata)
 				if (!window)
 					break;
 
+				revent->window = window;
+
 				if (cmevt->data.data32[0] == Whx_Winbuf.wm_del_win)
 				{
-					struct wh_event whevt = {
-						.window = window,
-						.type = WHIS_EVENT_WINDOW_CLOSE
-					};
+					revent->type = WHIS_EVENT_WINDOW_CLOSE;
 
-					callback(&whevt, userdata);
 					break;
 				}
 
-				struct wh_event whevt = {
-					.window = window,
-					.type = WHIS_EVENT_UNKNOWN,
-				};
-
-				callback(&whevt, userdata);
+				revent->type = WHIS_EVENT_UNKNOWN;
 
 				break;
 			}
@@ -410,6 +351,8 @@ void wh_pollevents(wh_evt_callback callback, void *userdata)
 
 		}
 		free(evt);
+		if (revent->type != WHIS_EVENT_UNKNOWN)
+			return;
 	}
 }
 

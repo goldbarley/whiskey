@@ -11,7 +11,7 @@ struct wh_window
 {
 	xcb_connection_t *connection;
 	xcb_window_t window;
-	const char *title;
+	char *title;
 	uint32_t width;
 	uint32_t height;
 	int8_t wid;

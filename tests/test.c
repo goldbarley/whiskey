@@ -1,11 +1,15 @@
+#define _GNU_SOURCE
+
 #include "whis/event.h"
 #include <whis/whiskey.h>
 
 #include <stdio.h>
 
+#include <unistd.h>
+
 static uint64_t cnt = 0;
 
-int evt_callback(struct wh_event *evt, void *userdata)
+int event_handler(struct wh_event *evt, unsigned int *actwins)
 {
 	switch (evt->type)
 	{
@@ -52,7 +56,7 @@ int evt_callback(struct wh_event *evt, void *userdata)
 			break;
 		case WHIS_EVENT_WINDOW_CLOSE:
 			printf("WINDOW CLOSE: %i\n", wh_get_window_id(evt->window));
-			--(*(int *)userdata);
+			--(*actwins);
 			wh_destroy_window(evt->window);
 			break;
 		default:
@@ -79,10 +83,14 @@ int main(void)
 
 	unsigned int actwins = 2;
 
-	while(actwins > 0)
+	while (actwins)
 	{
-		wh_pollevents(evt_callback, &actwins);
+		wh_poll_events(&evt);
+		event_handler(&evt, &actwins);
 	}
+
+	// wh_poll_events(&evt);
+	// event_handler(&evt, &actwins);
 
 	wh_shutdown();
 

@@ -15,7 +15,7 @@ WHIS_EXPORT
 void wh_destroy_window(wh_window *window);
 
 WHIS_EXPORT
-void wh_pollevents(wh_evt_callback callback, void *userdata);
+void wh_poll_events(struct wh_event *evt);
 
 WHIS_EXPORT
 wh_fnresult wh_get_framebuffer_size(wh_window *window, uint32_t *width,
