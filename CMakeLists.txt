@@ -77,6 +77,7 @@ if (WHIS_PLATFORM STREQUAL "X11")
 
 	target_sources(${PROJECT_NAME} PRIVATE
 		${CMAKE_CURRENT_SOURCE_DIR}/src/whx/util.c
+		${CMAKE_CURRENT_SOURCE_DIR}/src/whx/vulkan.c
 		${CMAKE_CURRENT_SOURCE_DIR}/src/whx/window.c)
 endif () # Platform X11
 

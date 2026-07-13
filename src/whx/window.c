@@ -1,38 +1,27 @@
-#define VK_USE_PLATFORM_XCB_KHR
-
+#include "handle.h"
 #include "whis/attr.h"
 #include "whis/event.h"
 #include "whis/math.h"
+#include "whis/types.h"
 #include "whx/util.h"
-#include "whis/vulkan.h"
 #include "whis/window.h"
 
 #include <xcb/xcb.h>
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <xcb/xproto.h>
-
-struct wh_window
-{
-	xcb_connection_t *connection;
-	xcb_window_t window;
-	const char *title;
-	uint32_t width;
-	uint32_t height;
-	bool focused;
-	bool ptrin;
-};
 
 #include <stdint.h>
 
-static struct wh_winbuf
+static struct whx_winbuf
 {
 	struct wh_window winbuf[WHIS_MAX_WINDOW_COUNT];
 	xcb_connection_t *connection;
+	xcb_atom_t wm_protocols;
+	xcb_atom_t wm_del_win;
 	uint64_t freemask;
 	uint64_t usedmask;
 	wh_bool connected;
@@ -51,6 +40,7 @@ wh_window *whx_get_freeaddr(void)
 	uint8_t fi = WHIS_CTZ64(Whx_Winbuf.freemask);
 	WHIS_CLR_BIT64(Whx_Winbuf.freemask, fi);
 	Whx_Winbuf.usedmask = ~Whx_Winbuf.freemask;
+	Whx_Winbuf.winbuf[fi].wid = (int8_t)(fi);
 
 	return &Whx_Winbuf.winbuf[fi];
 }
@@ -84,6 +74,30 @@ wh_window *wh_create_window(const uint32_t width, const uint32_t height,
 		cnn = xcb_connect(NULL, NULL);
 		if (xcb_connection_has_error(cnn))
 			return NULL;
+
+		xcb_intern_atom_cookie_t wm_protocols =
+			xcb_intern_atom(cnn, 0, 12, "WM_PROTOCOLS");
+
+		xcb_intern_atom_cookie_t wm_del_win =
+			xcb_intern_atom(cnn, 0, 16, "WM_DELETE_WINDOW");
+
+		xcb_intern_atom_reply_t *reply_protocols =
+			xcb_intern_atom_reply(cnn, wm_protocols, NULL);
+
+		xcb_intern_atom_reply_t *reply_del_win =
+			xcb_intern_atom_reply(cnn, wm_del_win, NULL);
+
+		if (!reply_protocols || !reply_del_win)
+		{
+			free(reply_protocols);
+			free(reply_del_win);
+			xcb_disconnect(cnn);
+
+			return NULL;
+		}
+
+		Whx_Winbuf.wm_protocols = reply_protocols->atom;
+		Whx_Winbuf.wm_del_win = reply_del_win->atom;
 		Whx_Winbuf.connected = WHIS_TRUE;
 
 		Whx_Winbuf.connection = cnn;
@@ -119,20 +133,40 @@ wh_window *wh_create_window(const uint32_t width, const uint32_t height,
 	xcb_window_t xwin = xcb_generate_id(cnn);
 	win->window = xwin;
 
-	xcb_void_cookie_t cookie = xcb_create_window_checked(
+	xcb_void_cookie_t win_cookie = xcb_create_window_checked(
 		cnn, XCB_COPY_FROM_PARENT, xwin, scr->root, 0, 0,
 		width, height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
 		scr->root_visual, mask, &evtmask);
 
-	xcb_generic_error_t *error = xcb_request_check(cnn, cookie);
+	xcb_void_cookie_t prop_cookie =
+	xcb_change_property_checked(cnn, XCB_PROP_MODE_REPLACE, xwin,
+				    XCB_ATOM_WM_NAME, XCB_ATOM_STRING,
+				    8, strlen(title), title);
+
+	xcb_change_property(cnn, XCB_PROP_MODE_REPLACE, xwin,
+			    Whx_Winbuf.wm_protocols, XCB_ATOM_ATOM, 32, 1,
+			    &Whx_Winbuf.wm_del_win);
+
+	xcb_generic_error_t *error = xcb_request_check(cnn, win_cookie);
 	if (error)
 	{
 		free(error);
-		xcb_disconnect(cnn);
 		whx_remove_window(win);
 
 		return NULL;
 	}
+
+	error = xcb_request_check(cnn, prop_cookie);
+	if (error)
+	{
+		free(error);
+		xcb_destroy_window(cnn, xwin);
+		whx_remove_window(win);
+
+		return NULL;
+	}
+
+
 
 	xcb_map_window(cnn, xwin);
 	xcb_flush(cnn);
@@ -140,16 +174,32 @@ wh_window *wh_create_window(const uint32_t width, const uint32_t height,
 	return win;
 }
 
-WHIS_EXPORT
-void wh_poll_for_event(wh_window *window, wh_evt_callback callback,
-			void *userdata)
+struct wh_window *whx_get_window(xcb_window_t xwin)
 {
-	if (!window)
+	uint64_t umask = Whx_Winbuf.usedmask;
+	uint8_t i = 0;
+
+	while(umask)
+	{
+		i = WHIS_CTZ64(umask);
+		if (Whx_Winbuf.winbuf[i].window == xwin)
+			return &Whx_Winbuf.winbuf[i];
+		WHIS_CLR_BIT64(umask, i);
+	}
+
+	return NULL;
+}
+
+WHIS_EXPORT
+void wh_pollevents(wh_evt_callback callback, void *userdata)
+{
+	if (!callback || !Whx_Winbuf.connected)
 		return;
 
 	register xcb_generic_event_t *evt;
-	register xcb_connection_t *cnn = window->connection;
+	register xcb_connection_t *cnn = Whx_Winbuf.connection;
 	register uint32_t rt = 0;
+	register struct wh_window *window = NULL;
 
 	while ((evt = xcb_poll_for_event(cnn)))
 	{
@@ -162,7 +212,12 @@ void wh_poll_for_event(wh_window *window, wh_evt_callback callback,
 				xcb_key_press_event_t *kpevt =
 					(xcb_key_press_event_t *)(evt);
 
+				window = whx_get_window(kpevt->event);
+				if (!window)
+					break;
+
 				struct wh_event whevt = {
+					.window = window,
 					.type = (rt == XCB_KEY_PRESS) ?
 						WHIS_EVENT_KEY_PRESS :
 						WHIS_EVENT_KEY_RELEASE,
@@ -181,7 +236,12 @@ void wh_poll_for_event(wh_window *window, wh_evt_callback callback,
 				xcb_button_press_event_t *bpevt =
 					(xcb_button_press_event_t *)(evt);
 
+				window = whx_get_window(bpevt->event);
+				if (!window)
+					break;
+
 				struct wh_event whevt = {
+					.window = window,
 					.type = (rt == XCB_BUTTON_PRESS) ?
 						WHIS_EVENT_BTN_PRESS :
 						WHIS_EVENT_BTN_RELEASE,
@@ -199,7 +259,12 @@ void wh_poll_for_event(wh_window *window, wh_evt_callback callback,
 				xcb_motion_notify_event_t *mevt =
 					(xcb_motion_notify_event_t *)(evt);
 
+				window = whx_get_window(mevt->event);
+				if (!window)
+					break;
+
 				struct wh_event whevt = {
+					.window = window,
 					.type = WHIS_EVENT_PTR_MOVE,
 					.ptr.x = mevt->event_x,
 					.ptr.y = mevt->event_y
@@ -212,9 +277,16 @@ void wh_poll_for_event(wh_window *window, wh_evt_callback callback,
 
 			case XCB_FOCUS_IN:
 			{
+				xcb_focus_in_event_t *fievt =
+					(xcb_focus_in_event_t *)(evt);
+
+				window = whx_get_window(fievt->event);
+				if (!window)
+					break;
 				window->focused = WHIS_TRUE;
 
 				struct wh_event whevt = {
+					.window = window,
 					.type = WHIS_EVENT_FOCUS_IN
 				};
 
@@ -224,9 +296,16 @@ void wh_poll_for_event(wh_window *window, wh_evt_callback callback,
 			}
 			case XCB_FOCUS_OUT:
 			{
+				xcb_focus_out_event_t *foevt =
+					(xcb_focus_out_event_t *)(evt);
+
+				window = whx_get_window(foevt->event);
+				if (!window)
+					break;
 				window->focused = WHIS_FALSE;
 
 				struct wh_event whevt = {
+					.window = window,
 					.type = WHIS_EVENT_FOCUS_OUT
 				};
 
@@ -237,9 +316,16 @@ void wh_poll_for_event(wh_window *window, wh_evt_callback callback,
 
 			case XCB_ENTER_NOTIFY:
 			{
+				xcb_enter_notify_event_t *enevt =
+					(xcb_enter_notify_event_t *)(evt);
+
+				window = whx_get_window(enevt->event);
+				if (!window)
+					break;
 				window->ptrin = WHIS_TRUE;
 
 				struct wh_event whevt = {
+					.window = window,
 					.type = WHIS_EVENT_PTR_IN
 				};
 
@@ -249,9 +335,16 @@ void wh_poll_for_event(wh_window *window, wh_evt_callback callback,
 			}
 			case XCB_LEAVE_NOTIFY:
 			{
+				xcb_leave_notify_event_t *lnevt =
+					(xcb_leave_notify_event_t *)(evt);
+
+				window = whx_get_window(lnevt->event);
+				if (!window)
+					break;
 				window->ptrin = WHIS_FALSE;
 
 				struct wh_event whevt = {
+					.window = window,
 					.type = WHIS_EVENT_PTR_OUT
 				};
 
@@ -265,11 +358,46 @@ void wh_poll_for_event(wh_window *window, wh_evt_callback callback,
 				xcb_configure_notify_event_t *cevt =
 					(xcb_configure_notify_event_t *)(evt);
 
+				window = whx_get_window(cevt->event);
+				if (!window)
+					break;
+
 				window->width = cevt->width;
 				window->height = cevt->height;
 
 				struct wh_event whevt = {
+					.window = window,
 					.type = WHIS_EVENT_WINDOW_CONFIGURE
+				};
+
+				callback(&whevt, userdata);
+
+				break;
+			}
+
+			case XCB_CLIENT_MESSAGE:
+			{
+				xcb_client_message_event_t *cmevt =
+					(xcb_client_message_event_t *)(evt);
+
+				window = whx_get_window(cmevt->window);
+				if (!window)
+					break;
+
+				if (cmevt->data.data32[0] == Whx_Winbuf.wm_del_win)
+				{
+					struct wh_event whevt = {
+						.window = window,
+						.type = WHIS_EVENT_WINDOW_CLOSE
+					};
+
+					callback(&whevt, userdata);
+					break;
+				}
+
+				struct wh_event whevt = {
+					.window = window,
+					.type = WHIS_EVENT_UNKNOWN,
 				};
 
 				callback(&whevt, userdata);
@@ -286,41 +414,14 @@ void wh_poll_for_event(wh_window *window, wh_evt_callback callback,
 }
 
 WHIS_EXPORT
-void wh_pollevents(wh_evt_callback callback, void *userdata)
-{
-	uint8_t i = 0;
-	uint64_t umask = Whx_Winbuf.usedmask;
-
-	while(umask)
-	{
-		i = WHIS_CTZ64(umask);
-		windump = &Whx_Winbuf.winbuf[i];
-		wh_poll_for_event(windump, callback, userdata);
-		WHIS_CLR_BIT64(umask, i);
-	}
-}
-
-WHIS_EXPORT
-wh_fnresult whx_get_framebuffer_size(wh_window *win, uint32_t *width,
+wh_fnresult wh_get_framebuffer_size(wh_window *win, uint32_t *width,
 			      uint32_t *height)
 {
 	if (!win || !width || !height)
 		return WHIS_INVARG;
 
-
-
-	xcb_get_geometry_cookie_t cookie = xcb_get_geometry(win->connection,
-							     win->window);
-	xcb_get_geometry_reply_t *reply = xcb_get_geometry_reply(win->connection,
-								 cookie, NULL);
-
-	if (!reply)
-		return WHIS_FAILURE;
-
-	*width = reply->width;
-	*height = reply ->height;
-
-	free(reply);
+	*width = win->width;
+	*height = win->height;
 
 	return WHIS_SUCCESS;
 }
@@ -338,38 +439,60 @@ wh_bool wh_ptr_in_window(wh_window *window)
 }
 
 WHIS_EXPORT
+wh_fnresult wh_resize_window(wh_window *window, const uint32_t width,
+			     const uint32_t height)
+{
+	if (!window)
+		return WHIS_INVARG;
+
+	register struct wh_window *rwin = window;
+	const uint32_t values[2] = { width, height };
+
+
+	xcb_configure_window(rwin->connection,
+			     rwin->window,
+			     XCB_CONFIG_WINDOW_WIDTH |
+			     XCB_CONFIG_WINDOW_HEIGHT,
+		             values);
+
+	return WHIS_SUCCESS;
+}
+
+WHIS_EXPORT
+wh_fnresult wh_restore_window_size(wh_window *window)
+{
+	if (!window)
+		return WHIS_INVARG;
+
+	const uint32_t values[2] = { window->width, window->height };
+
+	xcb_configure_window(window->connection,
+			     window->window,
+			     XCB_CONFIG_WINDOW_WIDTH |
+			     XCB_CONFIG_WINDOW_HEIGHT,
+			     values);
+
+	return WHIS_SUCCESS;
+}
+
+WHIS_EXPORT
+int8_t wh_get_window_id(wh_window *window)
+{
+	if (!window)
+		return -1;
+
+	return window->wid;
+}
+
+WHIS_EXPORT
 void wh_destroy_window(wh_window *win)
 {
 	if (!win)
 		return;
 
-	xcb_destroy_window(win->connection, win->window);
+	xcb_unmap_window(win->connection, win->window);
+	xcb_flush(win->connection);
 	whx_remove_window(win);
-}
-
-WHIS_EXPORT
-wh_fnresult wh_create_vulkan_surface(VkSurfaceKHR *surface, wh_window *window,
-				     VkInstance instance,
-				     PFN_vkCreateXcbSurfaceKHR fp,
-				     VkAllocationCallbacks *allocator)
-{
-	if (!surface || !window)
-		return WHIS_INVARG;
-
-	VkResult vkres = VK_SUCCESS;
-
-	VkXcbSurfaceCreateInfoKHR createinfo = {
-		.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
-		.pNext = NULL,
-		.connection = window->connection,
-		.window = window->window
-	};
-
-	vkres = fp(instance, &createinfo, allocator, surface);
-	if (vkres != VK_SUCCESS)
-		return WHIS_FAILURE;
-
-	return WHIS_SUCCESS;
 }
 
 WHIS_EXPORT
@@ -386,5 +509,8 @@ void wh_shutdown(void)
 		WHIS_CLR_BIT64(umask, i);
 	}
 
-	xcb_disconnect(Whx_Winbuf.connection);
+	if (Whx_Winbuf.connection)
+		xcb_disconnect(Whx_Winbuf.connection);
+
+	memset(&Whx_Winbuf, 0, sizeof(Whx_Winbuf));
 }

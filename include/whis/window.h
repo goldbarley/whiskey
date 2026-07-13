@@ -15,10 +15,6 @@ WHIS_EXPORT
 void wh_destroy_window(wh_window *window);
 
 WHIS_EXPORT
-void wh_poll_for_event(wh_window *window, wh_evt_callback callback,
-		       void *userdata);
-
-WHIS_EXPORT
 void wh_pollevents(wh_evt_callback callback, void *userdata);
 
 WHIS_EXPORT
@@ -30,6 +26,16 @@ wh_bool wh_window_in_focus(wh_window *window);
 
 WHIS_EXPORT
 wh_bool wh_ptr_in_window(wh_window *window);
+
+WHIS_EXPORT
+wh_fnresult wh_resize_window(wh_window *window, const uint32_t width,
+			     const uint32_t height);
+
+WHIS_EXPORT
+wh_fnresult wh_restore_window_size(wh_window *window);
+
+WHIS_EXPORT
+int8_t wh_get_window_id(wh_window *window);
 
 WHIS_EXPORT
 void wh_shutdown(void);
