@@ -1,6 +1,5 @@
 #define _GNU_SOURCE
 
-#include "whis/event.h"
 #include <whis/whiskey.h>
 
 #include <stdio.h>
@@ -9,7 +8,7 @@
 
 static uint64_t cnt = 0;
 
-int event_handler(struct wh_event *evt, unsigned int *actwins)
+int event_handler(struct wh_event *evt, uint8_t *actwins)
 {
 	switch (evt->type)
 	{
@@ -80,17 +79,13 @@ int main(void)
 
 
 	struct wh_event evt = {0};
-
-	unsigned int actwins = 2;
+	uint8_t actwins = wh_get_nwin();
 
 	while (actwins)
 	{
-		wh_poll_events(&evt);
-		event_handler(&evt, &actwins);
+		while (wh_poll_event(&evt))
+			event_handler(&evt, &actwins);
 	}
-
-	// wh_poll_events(&evt);
-	// event_handler(&evt, &actwins);
 
 	wh_shutdown();
 

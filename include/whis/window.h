@@ -15,7 +15,10 @@ WHIS_EXPORT
 void wh_destroy_window(wh_window *window);
 
 WHIS_EXPORT
-void wh_poll_events(struct wh_event *evt);
+wh_bool wh_poll_event(struct wh_event *event);
+
+WHIS_EXPORT
+wh_bool wh_wait_event(struct wh_event *event);
 
 WHIS_EXPORT
 wh_fnresult wh_get_framebuffer_size(wh_window *window, uint32_t *width,
@@ -36,6 +39,9 @@ wh_fnresult wh_restore_window_size(wh_window *window);
 
 WHIS_EXPORT
 int8_t wh_get_window_id(wh_window *window);
+
+WHIS_EXPORT
+uint8_t wh_get_nwin(void);
 
 WHIS_EXPORT
 void wh_shutdown(void);

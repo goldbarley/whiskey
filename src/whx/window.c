@@ -25,6 +25,7 @@ static struct whx_winbuf
 	uint64_t freemask;
 	uint64_t usedmask;
 	wh_bool connected;
+	uint8_t nwin;
 } Whx_Winbuf = {
 	.winbuf = {0},
 	.freemask = UINT64_MAX
@@ -40,9 +41,15 @@ wh_window *whx_get_freeaddr(void)
 	uint8_t fi = WHIS_CTZ64(Whx_Winbuf.freemask);
 	WHIS_CLR_BIT64(Whx_Winbuf.freemask, fi);
 	Whx_Winbuf.usedmask = ~Whx_Winbuf.freemask;
-	Whx_Winbuf.winbuf[fi].wid = (int8_t)(fi);
 
-	return &Whx_Winbuf.winbuf[fi];
+	struct wh_window *win = &Whx_Winbuf.winbuf[fi];
+	memset(win, 0, sizeof(struct wh_window));
+
+	win->wid = (int8_t)(fi);
+
+	++Whx_Winbuf.nwin;
+
+	return win;
 }
 
 void whx_remove_window(struct wh_window *window)
@@ -56,11 +63,11 @@ void whx_remove_window(struct wh_window *window)
 
 	if (!(Whx_Winbuf.freemask & (UINT64_C(1) << wi)))
 	{
-		/* whx_destroy_window(win); */
 		WHIS_SET_BIT64(Whx_Winbuf.freemask, wi);
-		memset(window, 0, sizeof(struct wh_window));
 		Whx_Winbuf.usedmask = ~Whx_Winbuf.freemask;
 	}
+
+	--Whx_Winbuf.nwin;
 }
 
 WHIS_EXPORT
@@ -152,7 +159,7 @@ wh_window *wh_create_window(const uint32_t width, const uint32_t height,
 	return win;
 }
 
-struct wh_window *whx_get_window(xcb_window_t xwin)
+static struct wh_window *whx_get_window(xcb_window_t xwin)
 {
 	uint64_t umask = Whx_Winbuf.usedmask;
 	uint8_t i = 0;
@@ -168,11 +175,12 @@ struct wh_window *whx_get_window(xcb_window_t xwin)
 	return NULL;
 }
 
-WHIS_EXPORT
-void wh_poll_events(struct wh_event *event)
+static wh_bool whx_next_event(struct wh_event *event,
+			      xcb_generic_event_t *(*get_event)
+			      (xcb_connection_t *))
 {
 	if (!event || !Whx_Winbuf.connected)
-		return;
+		return WHIS_FALSE;
 
 	xcb_generic_event_t *evt;
 
@@ -183,7 +191,7 @@ void wh_poll_events(struct wh_event *event)
 	revent->type = WHIS_EVENT_UNKNOWN;
 
 	uint32_t rt = 0;
-	while ((evt = xcb_poll_for_event(Whx_Winbuf.connection)))
+	while ((evt = get_event(Whx_Winbuf.connection)))
 	{
 		rt = evt->response_type & ~(0x80);
 		switch(rt)
@@ -351,9 +359,24 @@ void wh_poll_events(struct wh_event *event)
 
 		}
 		free(evt);
+
 		if (revent->type != WHIS_EVENT_UNKNOWN)
-			return;
+			return WHIS_TRUE;
 	}
+
+	return WHIS_FALSE;
+}
+
+WHIS_EXPORT
+wh_bool wh_poll_event(struct wh_event *event)
+{
+	return whx_next_event(event, xcb_poll_for_event);
+}
+
+WHIS_EXPORT
+wh_bool wh_wait_event(struct wh_event *event)
+{
+	return whx_next_event(event, xcb_wait_for_event);
 }
 
 WHIS_EXPORT
@@ -428,12 +451,18 @@ int8_t wh_get_window_id(wh_window *window)
 }
 
 WHIS_EXPORT
+uint8_t wh_get_nwin(void)
+{
+	return Whx_Winbuf.nwin;
+}
+
+WHIS_EXPORT
 void wh_destroy_window(wh_window *win)
 {
 	if (!win)
 		return;
 
-	xcb_unmap_window(win->connection, win->window);
+	xcb_destroy_window(win->connection, win->window);
 	xcb_flush(win->connection);
 	whx_remove_window(win);
 }

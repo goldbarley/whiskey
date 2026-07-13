@@ -4,6 +4,7 @@
 typedef enum wh_fnresult
 {
 	WHIS_SUCCESS = 0,
+	WHIS_INCOMPLETE,
 	WHIS_FAILURE = -10,
 	WHIS_INVARG
 } wh_fnresult;
