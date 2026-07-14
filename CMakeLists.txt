@@ -39,21 +39,21 @@ endif() # WHISKEY_IS_TOP_LVL
 if (WHISKEY_IS_TOP_LVL)
 	set(WHIS_DEFAULT_LIB_TYPE "EXEC")
 else()
-	set(WHIS_DEFAULT_LIB_TYPE "ARCH")
+	set(WHIS_DEFAULT_LIB_TYPE "STATIC")
 endif() # WHISKEY_IS_TOP_LVL
 
 set(WHIS_LIB_TYPE "${WHIS_DEFAULT_LIB_TYPE}" CACHE STRING "Library type.")
 
-if (WHIS_LIB_TYPE STREQUAL "STATIC")
-	add_library(${PROJECT_NAME} STATIC)
-	target_compile_definitions(${PROJECT_NAME} PUBLIC WHIS_LIB_STATIC)
+if (WHIS_LIB_TYPE STREQUAL "SHARED")
+	add_library(${PROJECT_NAME} SHARED)
+	target_compile_definitions(${PROJECT_NAME} PUBLIC WHIS_LIB_SHARED)
 elseif (WHIS_LIB_TYPE STREQUAL "EXEC")
 	add_executable(${PROJECT_NAME}
 		${CMAKE_CURRENT_SOURCE_DIR}/tests/test.c)
 	target_compile_definitions(${PROJECT_NAME} PUBLIC WHIS_LIB_EXEC)
 else ()
-	add_library(${PROJECT_NAME} SHARED)
-	target_compile_definitions(${PROJECT_NAME} PUBLIC WHIS_LIB_SHARED)
+	add_library(${PROJECT_NAME} STATIC)
+	target_compile_definitions(${PROJECT_NAME} PUBLIC WHIS_LIB_STATIC)
 endif() # WHIS_LIB_TYPE
 
 if (WHIS_INCLUDE_TESTS)
