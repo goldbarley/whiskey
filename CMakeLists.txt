@@ -12,23 +12,11 @@ endif() # CMAKE_BUILD_TYPE
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if (WIN32)
-	add_compile_definitions(WHIS_PLATFORM_WIN32)
-endif() # WIN32
-
 if (NOT WHIS_PLATFORM)
 	message(FATAL_ERROR "Error: Platform not specified.")
 endif() # WHIS_PLATFORM
 
 string(TOUPPER "${WHIS_PLATFORM}" WHIS_PLATFORM)
-
-if (WHIS_PLATFORM STREQUAL "X11")
-	add_compile_definitions(WHIS_PLATFORM_X11)
-	find_package(PkgConfig REQUIRED)
-	pkg_check_modules(XCB REQUIRED xcb)
-elseif (WHIS_PLATFORM STREQUAL "WAYLAND")
-	add_compile_definitions(WHIS_PLATFORM_WAYLAND)
-endif() # WHIS_PLATFORM
 
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 	set(WHISKEY_IS_TOP_LVL ON)
@@ -55,6 +43,18 @@ else ()
 	add_library(${PROJECT_NAME} STATIC)
 	target_compile_definitions(${PROJECT_NAME} PUBLIC WHIS_LIB_STATIC)
 endif() # WHIS_LIB_TYPE
+
+if (WHIS_PLATFORM STREQUAL "X11")
+	target_compile_definitions(${PROJECT_NAME} PUBLIC WHIS_PLATFORM_X11)
+	find_package(PkgConfig REQUIRED)
+	pkg_check_modules(XCB REQUIRED xcb)
+elseif (WHIS_PLATFORM STREQUAL "WAYLAND")
+	target_compile_definitions(${PROJECT_NAME} PUBLIC WHIS_PLATFORM_WAYLAND)
+endif() # WHIS_PLATFORM
+
+if (WIN32)
+	target_compile_definitions(${PROJECT_NAME} PUBLIC WHIS_PLATFORM_WIN32)
+endif() # WIN32
 
 if (WHIS_INCLUDE_TESTS)
 	target_include_directories(${PROJECT_NAME} PRIVATE
