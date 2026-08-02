@@ -51,7 +51,7 @@ int event_handler(struct wh_event *evt, uint8_t *actwins)
 		case WHIS_EVENT_WINDOW_CONFIGURE:
 			puts("WINDOW RESIZE!");
 			fflush(stdout);
-			wh_restore_window_size(evt->window);
+			wh_sync_window_size(evt->window);
 			break;
 		case WHIS_EVENT_WINDOW_CLOSE:
 			printf("WINDOW CLOSE: %i\n", wh_get_window_id(evt->window));

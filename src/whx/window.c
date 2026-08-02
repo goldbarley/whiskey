@@ -425,7 +425,7 @@ wh_fnresult wh_resize_window(wh_window *window, const uint32_t width,
 }
 
 WHIS_EXPORT
-wh_fnresult wh_restore_window_size(wh_window *window)
+wh_fnresult wh_sync_window_size(wh_window *window)
 {
 	if (!window)
 		return WHIS_INVARG;

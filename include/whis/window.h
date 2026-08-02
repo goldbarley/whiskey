@@ -35,7 +35,7 @@ wh_fnresult wh_resize_window(wh_window *window, const uint32_t width,
 			     const uint32_t height);
 
 WHIS_EXPORT
-wh_fnresult wh_restore_window_size(wh_window *window);
+wh_fnresult wh_sync_window_size(wh_window *window);
 
 WHIS_EXPORT
 int8_t wh_get_window_id(wh_window *window);
