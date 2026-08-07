@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include <whis/whiskey.h>
+#include <vulkan/vulkan.h>
 
 #include <stdio.h>
 

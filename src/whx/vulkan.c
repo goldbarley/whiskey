@@ -1,5 +1,3 @@
-#define VK_USE_PLATFORM_XCB_KHR
-
 #include "handle.h"
 #include "whis/attr.h"
 

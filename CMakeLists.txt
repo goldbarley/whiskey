@@ -45,15 +45,21 @@ else ()
 endif() # WHIS_LIB_TYPE
 
 if (WHIS_PLATFORM STREQUAL "X11")
-	target_compile_definitions(${PROJECT_NAME} PUBLIC WHIS_PLATFORM_X11)
+	target_compile_definitions(${PROJECT_NAME} PUBLIC
+		WHIS_PLATFORM_X11
+		VK_USE_PLATFORM_XCB_KHR)
 	find_package(PkgConfig REQUIRED)
 	pkg_check_modules(XCB REQUIRED xcb)
 elseif (WHIS_PLATFORM STREQUAL "WAYLAND")
-	target_compile_definitions(${PROJECT_NAME} PUBLIC WHIS_PLATFORM_WAYLAND)
+	target_compile_definitions(${PROJECT_NAME} PUBLIC
+		WHIS_PLATFORM_WAYLAND
+		VK_USE_PLATFORM_WAYLAND_KHR)
 endif() # WHIS_PLATFORM
 
 if (WIN32)
-	target_compile_definitions(${PROJECT_NAME} PUBLIC WHIS_PLATFORM_WIN32)
+	target_compile_definitions(${PROJECT_NAME} PUBLIC
+		WHIS_PLATFORM_WIN32
+		VK_USE_PLATFORM_WIN32_KHR)
 endif() # WIN32
 
 if (WHIS_INCLUDE_TESTS)
