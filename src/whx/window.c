@@ -105,8 +105,11 @@ wh_window *wh_create_window(const uint32_t width, const uint32_t height,
 
 		Whx_Winbuf.wm_protocols = reply_protocols->atom;
 		Whx_Winbuf.wm_del_win = reply_del_win->atom;
-		Whx_Winbuf.connected = WHIS_TRUE;
 
+		free(reply_protocols);
+		free(reply_del_win);
+
+		Whx_Winbuf.connected = WHIS_TRUE;
 		Whx_Winbuf.connection = cnn;
 	}
 

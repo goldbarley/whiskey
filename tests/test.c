@@ -88,6 +88,9 @@ int main(void)
 			event_handler(&evt, &actwins);
 	}
 
+	wh_destroy_window(window1);
+	wh_destroy_window(window2);
+
 	wh_shutdown();
 
 	return 0;
